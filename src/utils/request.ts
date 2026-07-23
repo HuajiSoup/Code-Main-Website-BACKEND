@@ -1,3 +1,12 @@
+class HttpError extends Error {
+    public status: number;
+
+    constructor(status: number, message: string) {
+        super(message);
+        this.status = status;
+    }
+}
+
 type SuccessRes = {
     success: true,
     data: object,
@@ -6,11 +15,12 @@ type SuccessRes = {
 
 type FailRes = {
     success: false,
+    data: null,
     code: number,
-    message: string,
+    message?: string,
 }
 
-function success_json<T extends object>(body: T, message?: string): SuccessRes {
+function successJSON<T extends object>(body: T, message?: string): SuccessRes {
     return {
         success: true,
         data: body,
@@ -18,4 +28,19 @@ function success_json<T extends object>(body: T, message?: string): SuccessRes {
     };
 }
 
-export { success_json };
+function failJSON(code: number, message?: string): FailRes {
+    return {
+        success: false,
+        data: null,
+        code: code,
+        message: message
+    };
+}
+
+function generateID() {
+    const timeID = (Date.now() * 2 + 1145).toString(16).toUpperCase();
+    const rand = Math.pow(Math.random(), 0.75).toString(36).substring(2, 10).toUpperCase();
+    return `${timeID}-${rand}`;
+}
+
+export { HttpError, successJSON, failJSON, generateID };
