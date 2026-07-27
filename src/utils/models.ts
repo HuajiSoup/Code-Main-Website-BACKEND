@@ -7,7 +7,7 @@ type RawBlogInfo = {
     tags: string,
     created_time: string,
     updated_time: string,
-    completed: boolean,
+    completed: number,
 };
 
 type BlogInfo = {
@@ -32,7 +32,7 @@ function standardBlogInfo(raw: RawBlogInfo): BlogInfo {
         tags: raw.tags ? raw.tags.trim().split(",") : [],
         createdTime: raw.created_time,
         updatedTime: raw.updated_time,
-        completed: raw.completed,
+        completed: raw.completed === 1,
     };
 }
 

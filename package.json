@@ -13,6 +13,7 @@
     "@types/busboy": "^1.5.4",
     "busboy": "^1.6.0",
     "flexsearch": "^0.8.212",
+    "hono": "^4.12.31",
     "nodejieba": "^3.5.8"
   }
 }

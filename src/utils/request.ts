@@ -1,7 +1,9 @@
-class HttpError extends Error {
-    public status: number;
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 
-    constructor(status: number, message: string) {
+class HttpError extends Error {
+    public status: ContentfulStatusCode;
+
+    constructor(status: ContentfulStatusCode, message: string) {
         super(message);
         this.status = status;
     }
@@ -20,7 +22,7 @@ type FailRes = {
     message?: string,
 }
 
-function successJSON<T extends object>(body: T, message?: string): SuccessRes {
+function successJSON<T extends object>(body: T, message: string = "ok"): SuccessRes {
     return {
         success: true,
         data: body,

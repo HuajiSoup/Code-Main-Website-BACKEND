@@ -2,7 +2,15 @@ import busboy from "busboy";
 import { createWriteStream } from "node:fs";
 import { mkdir, unlink } from "node:fs/promises";
 import { Readable } from "node:stream";
-import { generateID, HttpError } from "../../utils/request";
+import { generateID, HttpError, successJSON } from "../../utils/request";
+import { Hono } from "hono";
+
+export const uploadApp = new Hono();
+
+uploadApp.post("/", async (c) => {
+    const url = await uploadFile(c.req.raw);
+    return c.json(successJSON({ url: url }));
+});
 
 const FILE_PATH = `${process.env.STORAGE_PATH}/uploads`;
 const FILE_SIZE_LIMIT = 1024 * 1024 * 128; // 128MB
@@ -102,6 +110,3 @@ async function uploadFile(req: Request) {
 
     return rec["file"];
 }
-
-
-export { uploadFile, HttpError };
