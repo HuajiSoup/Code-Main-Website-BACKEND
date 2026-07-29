@@ -9,15 +9,19 @@ await initBlogSystem();
 console.log("Server is now loading...");
 const app = new Hono();
 
+app.route("/api/upload", uploadApp);
+app.route("/api/blog", blogApp);
+
+app.notFound((c) => {
+    return c.json(failJSON(404, "Route not found."), 404);
+});
+
 app.onError((e, c) => {
     const status = e instanceof HttpError ? e.status : 500;
     const message = e.message;
     console.error(e);
     return c.json(failJSON(status, message), status);
-})
-
-app.route("/api/upload", uploadApp);
-app.route("/api/blog", blogApp);
+});
 
 const server = Bun.serve({
     port: 5000,
