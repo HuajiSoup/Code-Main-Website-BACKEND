@@ -1,0 +1,55 @@
+name: Deploy on Server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Login dockerhub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_KEY }}
+      
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/huaji-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/huaji-backend:${{ github.sha }}
+      
+      - name: Deploy
+        uses: appleboy/ssh-action@v1
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_KEY }}
+          envs: PROD_ENV_FILE
+          script: |
+            cd /opt/huaji
+
+            printf '%s\n' "$PROD_ENV_FILE" > /opt/huaji/.env
+            chmod 600 /opt/huaji/.env
+
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/huaji-backend:latest
+
+            docker stop huaji-backend || true
+            docker rm huaji-backend || true
+
+            docker run -d \
+              --name huaji-backend \
+              --env-file /opt/huaji/.env \
+              -v /opt/huaji/data:/opt/huaji/data \
+              --restart unless-stopped \
+              -p 5000:5000 \
+              ${{ secrets.DOCKERHUB_USERNAME }}/huaji-backend:latest
