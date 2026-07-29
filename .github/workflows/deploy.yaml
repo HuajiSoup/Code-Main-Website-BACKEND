@@ -1,8 +1,10 @@
-name: Deploy on Server
+name: deploy-on-Server
+run-name: Deploy on Server Docker
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -33,13 +35,13 @@ jobs:
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_KEY }}
+          password: ${{ secrets.SERVER_PASSWORD }}
           envs: PROD_ENV_FILE
           script: |
-            cd /opt/huaji
+            set -e
 
-            printf '%s\n' "$PROD_ENV_FILE" > /opt/huaji/.env
-            chmod 600 /opt/huaji/.env
+            printf '%s\n' "$PROD_ENV_FILE" > /srv/huaji/build/.env
+            chmod 600 /srv/huaji/build/.env
 
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/huaji-backend:latest
 
@@ -48,8 +50,8 @@ jobs:
 
             docker run -d \
               --name huaji-backend \
-              --env-file /opt/huaji/.env \
-              -v /opt/huaji/data:/opt/huaji/data \
+              --env-file /srv/huaji/build/.env \
+              -v /srv/huaji/data:/srv/huaji/data \
               --restart unless-stopped \
               -p 5000:5000 \
               ${{ secrets.DOCKERHUB_USERNAME }}/huaji-backend:latest
