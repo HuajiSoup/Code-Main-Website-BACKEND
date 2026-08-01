@@ -45,4 +45,26 @@ function generateID() {
     return `${timeID}-${rand}`;
 }
 
-export { HttpError, successJSON, failJSON, generateID };
+const SAFE_EXT = new Set([
+    "jpg", "png", "jpeg", "ico", "bmp", "gif", "webp", "svg",
+    "mp3", "wmv", "wav", "mp4", "avi", "mpeg", "mov", "flv",
+    "zip", "rar", "7z", "gz",
+    "txt", "md", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+]);
+
+function isNormalString(str: string) {
+    return /^[a-zA-Z0-9\-_.]+$/.test(str);
+}
+
+function isNormalFilename(filename: string) {
+    const dot = filename.lastIndexOf(".");
+    if (dot === -1 || dot === 0) return false;
+
+    const name = filename.substring(0, dot);
+    const ext = filename.substring(dot + 1);
+    if (!SAFE_EXT.has(ext)) return false;
+
+    return isNormalString(name);
+}
+
+export { HttpError, successJSON, failJSON, generateID, isNormalString, isNormalFilename };

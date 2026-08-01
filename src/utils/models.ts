@@ -36,5 +36,14 @@ function standardBlogInfo(raw: RawBlogInfo): BlogInfo {
     };
 }
 
-export type { RawBlogInfo, BlogInfo };
+type ToyInfo = {
+    id: number;
+    slug: string;
+    title: string;
+    desc: string;
+};
+
+type RawToyInfo = ToyInfo;
+
+export type { RawBlogInfo, BlogInfo, RawToyInfo, ToyInfo };
 export { standardBlogInfo };

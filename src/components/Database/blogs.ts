@@ -2,12 +2,10 @@ import { Database } from "bun:sqlite";
 import { Document } from "flexsearch";
 import { tokenized } from "../../utils/tokenizer";
 import { standardBlogInfo, type BlogInfo, type RawBlogInfo } from "../../utils/models";
-import { Readable } from "node:stream";
-import busboy from "busboy";
 import { generateID, HttpError, successJSON } from "../../utils/request";
 import * as fs from "node:fs/promises";
-import { createWriteStream } from "node:fs";
 import { Hono } from "hono";
+import resolveFormdata from "../../utils/formdata";
 
 export const blogApp = new Hono();
 
@@ -15,7 +13,7 @@ blogApp
     .get("/", (c) => {
         const q = c.req.query("q");
         const tag = c.req.query("tag");
-        return c.json(successJSON({ items: searchBlog({ q, tag }) }));
+        return c.json(successJSON({ blogs: searchBlog({ q, tag }) }));
     })
     .post("/", async (c) => {
         await postBlog(c.req.raw);
@@ -52,6 +50,20 @@ export async function initBlogSystem() {
     await fs.mkdir(STORE_PATH, { recursive: true });
 
     db = new Database(DB_PATH, { create: true });
+    db.run(`
+        CREATE TABLE IF NOT EXISTS blogs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            desc TEXT NOT NULL,
+            emoji TEXT NOT NULL,
+            tags TEXT NOT NULL,
+            created_time TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            updated_time TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            completed BOOLEAN NOT NULL
+        );
+    `);
+
     blogIndex = new Document({
         id: "slug",
         tag: "tags",
@@ -71,20 +83,6 @@ export async function initBlogSystem() {
         ],
         encoder: tokenized,
     });
-
-    db.run(`
-        CREATE TABLE IF NOT EXISTS blogs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            slug TEXT NOT NULL UNIQUE,
-            title TEXT NOT NULL,
-            desc TEXT NOT NULL,
-            emoji TEXT NOT NULL,
-            tags TEXT NOT NULL,
-            created_time TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-            updated_time TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-            completed BOOLEAN NOT NULL
-        );
-    `);
 
     // original index
     type BlogInfoForIndex = Pick<RawBlogInfo, "id" | "slug" | "title" | "desc" | "tags">
@@ -169,104 +167,23 @@ type blogInsertParam = Pick<RawBlogInfo,
     "slug" | "title" | "desc" | "emoji" | "tags" | "completed">;
 
 async function postBlog(req: Request, slug?: string) {
-    const bb = busboy({
-        headers: Object.fromEntries(req.headers.entries()),
-        limits: {
-            fileSize: 1024 * 1024 * 16
-        }
-    });
-    const nodeStream = Readable.fromWeb(req.body as any);
+    const { fields, files } = await resolveFormdata(req);
 
-    const fields: Record<string, string> = {};
-    const tempSlug = generateID();
-    const tempPath = `${STORE_PATH}/${tempSlug}`;
-    const clearTemp = () => { fs.rm(tempPath, { recursive: true }).catch(() => {}); };
+    const tempPath = `${STORE_PATH}/temp-${generateID()}`;
+    const tempResPath = `${tempPath}/res`;
+    await fs.mkdir(tempResPath, {recursive: true})
 
-    let hasContent = false;
+    const contentFile = files.content?.[0];
+    if (contentFile) await fs.rename(contentFile, `${tempPath}/blog.md`);
+    const coverFile = files.cover?.[0];
+    if (coverFile) await fs.rename(coverFile, `${tempPath}/cover.png`);
+    const resFiles = files.res ?? [];
+    for (const file of resFiles) {
+        const filename = file.split("/").at(-1);
+        await fs.rename(file, `${tempResPath}/${filename}`);
+    }
 
-    await fs.mkdir(`${tempPath}/res`, { recursive: true });
-    await new Promise<void>((resolve, reject) => {
-        let pendingWrites = 0;
-        let settled = false;
-        let bbFinished = false;
-
-        const fail = (err: HttpError) => {
-            if (settled) return;
-            settled = true;
-            console.log(`File failed to upload: ${err.message}`);
-            reject(err);
-        }
-
-        const tryResolve = () => {
-            if (settled) return;
-            if (!bbFinished || pendingWrites > 0) return;
-            settled = true;
-            resolve();
-        }
-
-        bb.on("field", (fieldName: keyof blogPostOptions, value) => {
-            fields[fieldName] = value;
-        });
-
-        bb.on("file", (fieldName, fileStream, info) => {
-            const { filename } = info;
-            let dest: string;
-            if (fieldName === "content") {
-                dest = `${tempPath}/blog.md`;
-                hasContent = true;
-            } else if (fieldName === "cover") {
-                dest = `${tempPath}/cover.png`;
-            } else if (fieldName === "res") {
-                dest = `${tempPath}/res/${filename}`;
-            } else {
-                fileStream.resume();
-                return;
-            }
-
-            const writeStream = createWriteStream(dest);
-            pendingWrites++;
-
-            fileStream.on("limit", () => {
-                writeStream.destroy();
-                clearTemp(); // end the whole process
-                fail(new HttpError(413, `File [${filename}] exceeds the size limit of 16MB.`));
-            });
-
-            fileStream.on("error", (e) => {
-                writeStream.destroy();
-                clearTemp();
-                fail(new HttpError(400, `Failed to read uploaded file [${filename}]: ${e.message}`));
-            });
-
-            writeStream.on("error", (e) => {
-                fileStream.destroy();
-                clearTemp();
-                fail(new HttpError(500, `Failed to write file [${filename}] to disk: ${e.message}`));
-            });
-
-            writeStream.on("finish", () => {
-                pendingWrites--;
-                tryResolve();
-            });
-
-            fileStream.pipe(writeStream);
-        });
-
-        bb.on("finish", () => {
-            bbFinished = true;
-            tryResolve();
-        });
-
-        bb.on("error", (e: Error) => {
-            fail(new HttpError(400, `Can't resolve this request: ${e.message}`));
-        });
-
-        nodeStream.on("error", (e: Error) => {
-            fail(new HttpError(400, `Request Stream error: ${e.message}`));
-        });
-
-        nodeStream.pipe(bb);
-    });
+    const clearTemp = () => fs.rm(tempPath, { recursive: true });
 
     if (slug) {
         // it's a put
@@ -308,7 +225,7 @@ async function postBlog(req: Request, slug?: string) {
     } else {
         // it's a new post
         if (!("slug" in fields && "title" in fields && "desc" in fields && "emoji" in fields 
-            && "completed" in fields && "tags" in fields && hasContent)) {
+            && "completed" in fields && "tags" in fields && contentFile)) {
             clearTemp();
             throw new HttpError(400, "Lack arguments.");
         }

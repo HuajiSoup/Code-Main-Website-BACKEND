@@ -1,10 +1,13 @@
 import { Hono } from "hono";
 import { blogApp, initBlogSystem } from "./src/components/Database/blogs";
-import { uploadApp } from "./src/components/File/upload";
+import { initUploadSystem, uploadApp } from "./src/components/File/upload";
 import { failJSON, HttpError } from "./src/utils/request";
+import { initToySystem } from "./src/components/Database/toys";
 
 console.log("Service is now initializing...");
 await initBlogSystem();
+await initToySystem();
+await initUploadSystem();
 
 console.log("Server is now loading...");
 const app = new Hono();
