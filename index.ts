@@ -1,8 +1,8 @@
 import { Hono } from "hono";
+import { failJSON, HttpError } from "./src/utils/request";
 import { blogApp, initBlogSystem } from "./src/components/Database/blogs";
 import { initUploadSystem, uploadApp } from "./src/components/File/upload";
-import { failJSON, HttpError } from "./src/utils/request";
-import { initToySystem } from "./src/components/Database/toys";
+import { initToySystem, toyApp } from "./src/components/Database/toys";
 
 console.log("Service is now initializing...");
 await initBlogSystem();
@@ -14,6 +14,7 @@ const app = new Hono();
 
 app.route("/api/upload", uploadApp);
 app.route("/api/blog", blogApp);
+app.route("/api/toy", toyApp);
 
 app.notFound((c) => {
     return c.json(failJSON(404, "Route not found."), 404);
@@ -21,7 +22,7 @@ app.notFound((c) => {
 
 app.onError((e, c) => {
     const status = e instanceof HttpError ? e.status : 500;
-    const message = e.message;
+    const message = (status === 500) ? `Server internal error: ${e.message}` : e.message;
     console.error(e);
     return c.json(failJSON(status, message), status);
 });

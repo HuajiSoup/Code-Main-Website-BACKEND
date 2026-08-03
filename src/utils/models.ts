@@ -8,6 +8,7 @@ type RawBlogInfo = {
     created_time: string,
     updated_time: string,
     completed: number,
+    cover: string | null,
 };
 
 type BlogInfo = {
@@ -20,6 +21,7 @@ type BlogInfo = {
     createdTime: string,
     updatedTime: string,
     completed: boolean,
+    cover: string | null,
 };
 
 function standardBlogInfo(raw: RawBlogInfo): BlogInfo {
@@ -33,6 +35,7 @@ function standardBlogInfo(raw: RawBlogInfo): BlogInfo {
         createdTime: raw.created_time,
         updatedTime: raw.updated_time,
         completed: raw.completed === 1,
+        cover: raw.cover,
     };
 }
 
@@ -41,6 +44,7 @@ type ToyInfo = {
     slug: string;
     title: string;
     desc: string;
+    cover: string | null;
 };
 
 type RawToyInfo = ToyInfo;

@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@types/busboy": "^1.5.4",
+    "adm-zip": "^0.6.0",
     "busboy": "^1.6.0",
+    "extract-zip": "^2.0.1",
     "flexsearch": "^0.8.212",
     "hono": "^4.12.31"
   }

@@ -47,13 +47,14 @@ function generateID() {
 
 const SAFE_EXT = new Set([
     "jpg", "png", "jpeg", "ico", "bmp", "gif", "webp", "svg",
-    "mp3", "wmv", "wav", "mp4", "avi", "mpeg", "mov", "flv",
+    "mp3", "wmv", "wav", "ogg", "mp4", "avi", "mpeg", "mov", "flv",
     "zip", "rar", "7z", "gz",
-    "txt", "md", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "txt", "md", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "json", "xml",
+    "html", "htm", "css", "scss", "sass", "js", "mjs", "cjs", "ts"
 ]);
 
 function isNormalString(str: string) {
-    return /^[a-zA-Z0-9\-_.]+$/.test(str);
+    return /^[a-zA-Z0-9\-_.][a-zA-Z0-9\-_. ]*$/.test(str);
 }
 
 function isNormalFilename(filename: string) {
@@ -67,4 +68,11 @@ function isNormalFilename(filename: string) {
     return isNormalString(name);
 }
 
-export { HttpError, successJSON, failJSON, generateID, isNormalString, isNormalFilename };
+function isNormalDirname(dirname: string) {
+    return isNormalString(dirname);
+}
+
+export { 
+    HttpError, successJSON, failJSON, 
+    generateID, isNormalString, isNormalFilename, isNormalDirname 
+};

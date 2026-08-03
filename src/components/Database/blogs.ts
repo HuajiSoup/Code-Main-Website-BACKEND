@@ -60,7 +60,8 @@ export async function initBlogSystem() {
             tags TEXT NOT NULL,
             created_time TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
             updated_time TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-            completed BOOLEAN NOT NULL
+            completed BOOLEAN NOT NULL,
+            cover TEXT
         );
     `);
 
@@ -164,7 +165,7 @@ type blogPostOptions = {
     completed: string,
 };
 type blogInsertParam = Pick<RawBlogInfo,
-    "slug" | "title" | "desc" | "emoji" | "tags" | "completed">;
+    "slug" | "title" | "desc" | "emoji" | "tags" | "completed" | "cover">;
 
 async function postBlog(req: Request, slug?: string) {
     const { fields, files } = await resolveFormdata(req);
@@ -176,14 +177,16 @@ async function postBlog(req: Request, slug?: string) {
     const contentFile = files.content?.[0];
     if (contentFile) await fs.rename(contentFile, `${tempPath}/blog.md`);
     const coverFile = files.cover?.[0];
-    if (coverFile) await fs.rename(coverFile, `${tempPath}/cover.png`);
+    const coverName = coverFile ? (coverFile.split("/").at(-1) ?? null) : null;
+    if (coverFile && coverName) await fs.rename(coverFile, `${tempPath}/${coverName}`);
+    
     const resFiles = files.res ?? [];
     for (const file of resFiles) {
         const filename = file.split("/").at(-1);
         await fs.rename(file, `${tempResPath}/${filename}`);
     }
 
-    const clearTemp = () => fs.rm(tempPath, { recursive: true });
+    const clearTemp = () => fs.rm(tempPath, { recursive: true }).catch(() => {});
 
     if (slug) {
         // it's a put
@@ -193,10 +196,7 @@ async function postBlog(req: Request, slug?: string) {
             throw new HttpError(400, "This blog does not exist.");
         }
         const oldPath = `${STORE_PATH}/${slug}`;
-        if (!await fs.exists(oldPath)) {
-            clearTemp();
-            throw new HttpError(400, "This blog does not exist.");
-        }
+        await fs.mkdir(oldPath, { recursive: true });
 
         const updated: Omit<blogInsertParam, "slug"> = { 
             title: fields.title ?? old.title,
@@ -205,15 +205,16 @@ async function postBlog(req: Request, slug?: string) {
             tags: fields.tags ?? old.tags,
             completed: "completed" in fields ? 
                 fields.completed === "true" ? 1 : 0
-                : old.completed
+                : old.completed,
+            cover: coverName ?? old.cover,
         };
         await fs.cp(tempPath, oldPath, { recursive: true });
         clearTemp();
 
         db.prepare(
             "UPDATE blogs SET title = ?, desc = ?, emoji = ?, tags = ?, completed = ?, \
-            updated_time = (datetime('now', 'localtime')) WHERE slug = ?",
-        ).run(updated.title, updated.desc, updated.emoji, updated.tags, updated.completed, slug);
+            cover = ?, updated_time = (datetime('now', 'localtime')) WHERE slug = ?",
+        ).run(updated.title, updated.desc, updated.emoji, updated.tags, updated.completed, updated.cover, slug);
 
         const content = await Bun.file(`${oldPath}/blog.md`).text();
         blogIndex.update(slug, {
@@ -235,20 +236,23 @@ async function postBlog(req: Request, slug?: string) {
             desc: fields.desc,
             emoji: fields.emoji,
             tags: fields.tags,
-            completed: fields.completed === "true" ? 1 : 0
+            completed: fields.completed === "true" ? 1 : 0,
+            cover: coverName,
         };
 
-        const newPath = `${STORE_PATH}/${created.slug}`;
-        if (await fs.exists(newPath)) {
+        const old = db.query("SELECT * FROM blogs WHERE slug = ?").get(fields.slug);
+        if (old) {
             clearTemp();
             throw new HttpError(400, "This blog already exists.");
         }
 
+        const newPath = `${STORE_PATH}/${created.slug}`;
+        await fs.rm(newPath, { recursive: true }).catch(() => {});
         await fs.rename(tempPath, newPath);
         db.prepare(
-            "INSERT INTO blogs (slug, title, desc, emoji, tags, completed) \
-            VALUES (?, ?, ?, ?, ?, ?)",
-        ).run(created.slug, created.title, created.desc, created.emoji, created.tags, created.completed);
+            "INSERT INTO blogs (slug, title, desc, emoji, tags, completed, cover) \
+            VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ).run(created.slug, created.title, created.desc, created.emoji, created.tags, created.completed, created.cover);
 
         const content = await Bun.file(`${newPath}/blog.md`).text();
         blogIndex.add(created.slug, {
