@@ -4,6 +4,8 @@ import { blogApp, initBlogSystem } from "./src/components/Database/blogs";
 import { initUploadSystem, uploadApp } from "./src/components/File/upload";
 import { initToySystem, toyApp } from "./src/components/Database/toys";
 
+const EDIT_TOKEN = process.env.MYSELF_TOKEN ?? Math.random().toString();
+
 console.log("Service is now initializing...");
 await initBlogSystem();
 await initToySystem();
@@ -12,9 +14,19 @@ await initUploadSystem();
 console.log("Server is now loading...");
 const app = new Hono();
 
-app.route("/api/upload", uploadApp);
-app.route("/api/blog", blogApp);
-app.route("/api/toy", toyApp);
+app.on(["POST", "PUT", "DELETE"], "/api/*", async (c, next) => {
+    const author = c.req.header("Authorization");
+    if (!(author && author.startsWith("Bearer "))) {
+        return c.json(failJSON(401, "Not authenticated."), 401);
+    }
+
+    const token = author.substring(7);
+    if (token !== EDIT_TOKEN) {
+        return c.json(failJSON(401, "Not authenticated."), 401);
+    }
+
+    await next();
+});
 
 app.notFound((c) => {
     return c.json(failJSON(404, "Route not found."), 404);
@@ -26,6 +38,10 @@ app.onError((e, c) => {
     console.error(e);
     return c.json(failJSON(status, message), status);
 });
+
+app.route("/api/upload", uploadApp);
+app.route("/api/blog", blogApp);
+app.route("/api/toy", toyApp);
 
 const server = Bun.serve({
     port: 5000,
