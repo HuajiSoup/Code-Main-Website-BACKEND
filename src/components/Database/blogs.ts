@@ -141,7 +141,7 @@ function searchBlog({ q, tag, limit = 100, offset = 0 }: blogSearchOption): Blog
 
             return selectAllBySlug(slugs);
         } else {
-            return (db.query("SELECT * FROM blogs").all() as RawBlogInfo[]).map(standardBlogInfo);
+            return (db.query("SELECT * FROM blogs ORDER BY created_time DESC").all() as RawBlogInfo[]).map(standardBlogInfo);
         }
     }
 }
